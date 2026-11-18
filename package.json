@@ -1,0 +1,17 @@
+{
+  "name": "rawrbailnewsking",
+  "version": "1.0.0",
+  "description": "Starter WhatsApp bot using Baileys with local pairing-code setup.",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "latest",
+    "pino": "^9.0.0"
+  }
+}
