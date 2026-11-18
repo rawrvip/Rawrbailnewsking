@@ -11,15 +11,28 @@ const AUTH_DIR = 'auth_info_baileys';
 const logger = pino({ level: 'silent' });
 let pairingCodeRequested = false;
 
+function normalizePhoneNumber(value) {
+  const phone = String(value || '').replace(/[^\d]/g, '');
+  if (!/^\d{8,15}$/.test(phone)) {
+    throw new Error('Nomor tidak valid. Gunakan format internasional dengan kode negara, angka saja (8–15 digit), contoh 62812...');
+  }
+  return phone;
+}
+
 async function askPhoneNumber() {
+  if (process.env.PHONE_NUMBER) {
+    return normalizePhoneNumber(process.env.PHONE_NUMBER);
+  }
+
+  // Panel hosting umumnya tidak menyediakan terminal interaktif.
+  if (!stdin.isTTY) {
+    throw new Error('Atur environment variable PHONE_NUMBER di panel (format internasional, angka saja), lalu restart server.');
+  }
+
   const rl = readline.createInterface({ input: stdin, output: stdout });
   try {
     const answer = await rl.question('Nomor WhatsApp (format internasional, angka saja; contoh 62812...): ');
-    const phone = answer.replace(/[^\d]/g, '');
-    if (!/^\d{8,15}$/.test(phone)) {
-      throw new Error('Nomor tidak valid. Gunakan kode negara, tanpa tanda + atau spasi.');
-    }
-    return phone;
+    return normalizePhoneNumber(answer);
   } finally {
     rl.close();
   }
@@ -46,13 +59,8 @@ async function startBot(phoneNumber) {
   socket.ev.on('creds.update', saveCreds);
 
   socket.ev.on('connection.update', async ({ connection, lastDisconnect }) => {
-    if (connection === 'connecting') {
-      console.log('Menghubungkan ke WhatsApp...');
-    }
-
-    if (connection === 'open') {
-      console.log('Bot berhasil terhubung ke WhatsApp.');
-    }
+    if (connection === 'connecting') console.log('Menghubungkan ke WhatsApp...');
+    if (connection === 'open') console.log('Bot berhasil terhubung ke WhatsApp.');
 
     if (connection === 'close') {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
@@ -67,13 +75,13 @@ async function startBot(phoneNumber) {
       }), 2000);
     }
 
-    // Pairing code dibuat lokal dan hanya ditampilkan di terminal pemilik bot.
+    // Pairing code dibuat lokal dan hanya ditampilkan di console pemilik server.
     if (!state.creds.registered && !pairingCodeRequested && connection === 'connecting') {
       pairingCodeRequested = true;
       try {
         const code = await socket.requestPairingCode(phoneNumber);
         console.log(`\nKode pairing WhatsApp: ${code}`);
-        console.log('Masukkan kode tersebut di WhatsApp > Perangkat tertaut > Tautkan dengan nomor telepon.\n');
+        console.log('Masukkan di WhatsApp > Perangkat tertaut > Tautkan dengan nomor telepon. Jangan bagikan kode ini.\n');
       } catch (error) {
         pairingCodeRequested = false;
         console.error('Tidak dapat meminta pairing code:', error.message);
@@ -99,7 +107,7 @@ async function startBot(phoneNumber) {
 
 async function main() {
   console.log('=== Rawr Baileys Bot ===');
-  console.log('Pairing code akan tampil di console ini; jangan bagikan kode atau folder sesi.');
+  console.log('Pairing code akan tampil di console server; jangan bagikan kode atau folder sesi.');
   const phoneNumber = await askPhoneNumber();
   await startBot(phoneNumber);
 }
